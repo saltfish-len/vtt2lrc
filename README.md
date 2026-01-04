@@ -4,6 +4,10 @@
 
 专为 Android 现代系统设计，支持**文件夹批量操作**与**原地转换**。
 
+可在release处下载：
+https://github.com/saltfish-len/vtt2lrc/releases
+选择Assets中的app-release.apk
+
 ## ✨ 功能特点 (Overview)
 
 * **📂 批量原地转换**：利用 Android SAF (Storage Access Framework) 机制，用户授权整个文件夹后，App 会自动扫描并转换所有 VTT 文件，直接在**同一目录**下生成 LRC 文件，无需手动导入导出。
