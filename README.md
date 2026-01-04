@@ -64,4 +64,5 @@ Android 版本在此基础上针对移动端文件系统进行了深度适配。
 ---
 
 **License**
-MIT
+不要商用就行
+This project is provided for non-commercial use only.
