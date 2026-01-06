@@ -1,0 +1,35 @@
+# Built outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.log
+
+# Gradle
+.gradle/
+build/
+
+# Local config
+local.properties
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+
+# Native build
+.cxx/
+.externalNativeBuild/
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services (if using Firebase)
+google-services.json
+
+# macOS
+.DS_Store
+
+# Android Studio captures
+captures/
