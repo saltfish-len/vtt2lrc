@@ -1,4 +1,4 @@
-package com.example.vtt2lrc
+package com.saltfishlen.vtt2lrc
 
 import java.util.regex.Pattern
 

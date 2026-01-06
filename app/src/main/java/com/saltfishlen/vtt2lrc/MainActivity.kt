@@ -1,4 +1,4 @@
-package com.example.vtt2lrc
+package com.saltfishlen.vtt2lrc
 
 import android.content.Context
 import android.content.Intent
