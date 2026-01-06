@@ -9,6 +9,7 @@
 # Gradle
 .gradle/
 build/
+app/release/
 
 # Local config
 local.properties
