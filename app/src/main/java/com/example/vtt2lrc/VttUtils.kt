@@ -1,10 +1,10 @@
-package com.example.vtt2lrc // 记得替换你的包名
+package com.example.vtt2lrc
 
 import java.util.regex.Pattern
 
 object VttUtils {
 
-    // 1. 扩展名列表：补全了字幕格式，与 JS 版保持一致
+    // 扩展名列表：包含常见音视频与字幕格式
     private val KNOWN_EXTENSIONS = listOf(
         // Audio
         ".mp3", ".wav", ".aac", ".flac", ".ogg", ".wma", ".m4a", ".opus",
@@ -17,8 +17,7 @@ object VttUtils {
         ".webvtt", ".ttml", ".dfxp", ".smi", ".sami"
     )
 
-    // 2. 正则：完全对齐 JS，匹配 "开始 --> 结束"
-    // JS Regex: /(?:(\d{1,2}):)?(\d{2}):(\d{2})\.(\d{3})\s+-->\s+(?:(\d{1,2}):)?(\d{2}):(\d{2})\.(\d{3})/
+    // 时间戳行，匹配 "开始 --> 结束"
     private val TIME_PATTERN = Pattern.compile(
         "(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})\\.(\\d{3})\\s+-->\\s+(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})\\.(\\d{3})"
     )
@@ -63,7 +62,7 @@ object VttUtils {
                 val minutes = (hoursStr?.toInt() ?: 0) * 60 + (minStr?.toInt() ?: 0)
                 val seconds = secStr?.toInt() ?: 0
 
-                // 毫秒处理：JS逻辑是 floor(ms/10)，即取前两位
+                // 毫秒处理：取前两位（centiseconds）
                 val centiSeconds = (msStr?.toInt() ?: 0) / 10
 
                 // 格式化为 LRC 标准 [MM:SS.xx]
@@ -103,7 +102,7 @@ object VttUtils {
 
         if (!removeNested) return baseName
 
-        // 2. 循环移除已知的后缀 (逻辑与 JS 一致)
+        // 2. 循环移除已知的后缀
         var lowerBase = baseName.lowercase()
         var foundExtension = true
 

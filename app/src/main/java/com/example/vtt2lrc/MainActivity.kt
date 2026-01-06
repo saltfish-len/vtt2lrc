@@ -1,4 +1,4 @@
-package com.example.vtt2lrc // 记得替换你的包名
+package com.example.vtt2lrc
 
 import android.content.Context
 import android.content.Intent
@@ -56,8 +56,7 @@ fun VttBatchConverterScreen() {
     ) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                // 1. 【关键修复】持久化权限
-                // 即使 App 重启，只要不卸载，该文件夹的权限依然有效
+                // 持久化权限，App 重启后依然有效
                 val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 try {
@@ -190,17 +189,17 @@ suspend fun processFolderInPlace(
                 val originalName = file.name ?: "unknown.vtt"
 
                 try {
-                    // 读取内容 (自动处理编码，BufferedReader 默认探测或UTF-8)
+                    // 读取内容（UTF-8）
                     val content = readTextFromUri(context, file.uri)
 
                     val baseName = VttUtils.getOutputFileName(originalName, removeNestedExt)
                     val lrcFileName = "$baseName.lrc"
                     val lrcContent = VttUtils.convertToLrc(content, baseName)
 
-                    // 【优化】覆盖逻辑
+                    // 覆盖逻辑：避免自动重命名
                     val existingLrc = rootDir.findFile(lrcFileName)
                     if (existingLrc != null && existingLrc.exists()) {
-                        // 尝试删除旧文件，防止 DocumentProvider 自动重命名 (如生成 xxx (1).lrc)
+                        // 尝试删除旧文件，防止自动重命名（如生成 xxx (1).lrc）
                         try {
                             existingLrc.delete()
                         } catch (e: Exception) {
@@ -212,7 +211,7 @@ suspend fun processFolderInPlace(
                     val newFile = rootDir.createFile("text/x-lrc", lrcFileName)
 
                     if (newFile != null) {
-                        // 【关键修复】使用 "w" 模式，并强制 UTF-8 编码
+                        // 使用 "w" 模式，并强制 UTF-8 编码
                         context.contentResolver.openOutputStream(newFile.uri, "w")?.use { output ->
                             output.write(lrcContent.toByteArray(Charsets.UTF_8))
                         }
@@ -240,8 +239,7 @@ suspend fun processFolderInPlace(
 fun readTextFromUri(context: Context, uri: Uri): String {
     val sb = StringBuilder()
     context.contentResolver.openInputStream(uri)?.use { inputStream ->
-        // 这里的 InputStreamReader 默认通常是 UTF-8，
-        // 如果你的 VTT 文件确定是 UTF-8，这里是安全的。
+        // InputStreamReader 使用 UTF-8
         BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
             var line: String? = reader.readLine()
             while (line != null) {
