@@ -32,7 +32,6 @@ object VttUtils {
 
         // 头部元数据
         lrcLines.append("[ti:${fileName}]\n")
-        lrcLines.append("[by:Android转换器]\n")
 
         var currentStartTime: String? = null
         val currentSubtitle = StringBuilder()
