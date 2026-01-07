@@ -1,4 +1,4 @@
-# <img src="app/src/main/cover.png" width="50" /> VTT to LRC Converter for Android
+# <img src="docs/images/cover.png" width="50" /> VTT to LRC Converter for Android
 
 
 
