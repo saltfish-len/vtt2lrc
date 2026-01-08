@@ -1,6 +1,6 @@
 # <img src="docs/images/cover.png" width="50" /> VTT to LRC Converter for Android
 
-
+<img src="docs/images/TITLE.png" width="500" />
 
 一个简单、高效、隐私安全的 Android 本地工具，用于将 WebVTT (`.vtt`) 字幕文件批量转换为 LRC (`.lrc`) 歌词文件。
 
