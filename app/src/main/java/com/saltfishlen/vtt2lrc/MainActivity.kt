@@ -202,6 +202,7 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
 
     var selectedExts by remember { mutableStateOf(setOf("mp4")) }
     var useVbr by remember { mutableStateOf(true) }
+    var showFfmpegLogs by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf("准备就绪，请选择文件或文件夹")) }
     var progress by remember { mutableStateOf(0f) }
@@ -222,6 +223,7 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     treeUri = it,
                     selectedExts = selectedExts,
                     mode = mode,
+                    showFfmpegLogs = showFfmpegLogs,
                     onLog = { msg -> logs = logs + msg },
                     onProgress = { p -> progress = p }
                 )
@@ -248,6 +250,7 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     fileUri = it,
                     selectedExts = selectedExts,
                     mode = mode,
+                    showFfmpegLogs = showFfmpegLogs,
                     onLog = { msg -> logs = logs + msg },
                     onProgress = { p -> progress = p }
                 )
@@ -275,6 +278,15 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     Spacer(modifier = Modifier.width(16.dp))
                     RadioButton(selected = !useVbr, onClick = { useVbr = false }, enabled = !isProcessing)
                     Text("CBR (192k)")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = showFfmpegLogs,
+                        onCheckedChange = { showFfmpegLogs = it },
+                        enabled = !isProcessing
+                    )
+                    Text("显示 FFmpeg 进度日志")
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("选择视频扩展名", fontWeight = FontWeight.Bold)
@@ -482,6 +494,7 @@ suspend fun extractMp3FromFolder(
     treeUri: Uri,
     selectedExts: Set<String>,
     mode: MP3Utils.Mp3Mode,
+    showFfmpegLogs: Boolean,
     onLog: (String) -> Unit,
     onProgress: (Float) -> Unit
 ) {
@@ -514,7 +527,8 @@ suspend fun extractMp3FromFolder(
                 videoUri = file.uri,
                 outputDirTreeUri = treeUri,
                 mode = mode,
-                cacheDir = context.cacheDir
+                cacheDir = context.cacheDir,
+                onFfmpegLog = if (showFfmpegLogs) ({ msg -> onLog(msg) }) else null
             )
             onLog(result.message)
             processed++
@@ -528,6 +542,7 @@ suspend fun extractMp3FromFile(
     fileUri: Uri,
     selectedExts: Set<String>,
     mode: MP3Utils.Mp3Mode,
+    showFfmpegLogs: Boolean,
     onLog: (String) -> Unit,
     onProgress: (Float) -> Unit
 ) {
@@ -564,7 +579,8 @@ suspend fun extractMp3FromFile(
             videoUri = fileUri,
             outputDirTreeUri = parentTreeUri,
             mode = mode,
-            cacheDir = context.cacheDir
+            cacheDir = context.cacheDir,
+            onFfmpegLog = if (showFfmpegLogs) ({ msg -> onLog(msg) }) else null
         )
         onLog(result.message)
         onProgress(1f)

@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.arthenica.ffmpegkit.ReturnCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -105,7 +106,8 @@ object MP3Utils {
         videoUri: Uri,
         outputDirTreeUri: Uri,
         mode: Mp3Mode,
-        cacheDir: File
+        cacheDir: File,
+        onFfmpegLog: ((String) -> Unit)? = null
     ): ExtractResult = withContext(Dispatchers.IO) {
         val cr = context.contentResolver
         val displayName = queryDisplayName(cr, videoUri) ?: videoUri.lastPathSegment ?: "video"
@@ -141,10 +143,32 @@ object MP3Utils {
             )
         }
 
+        var lastStatMs = 0L
+        if (onFfmpegLog != null) {
+            FFmpegKitConfig.enableLogCallback { log ->
+                val msg = log.message?.trim()
+                if (!msg.isNullOrEmpty()) {
+                    onFfmpegLog("ffmpeg: $msg")
+                }
+            }
+            FFmpegKitConfig.enableStatisticsCallback { stats ->
+                val timeMs = stats.time.toLong()
+                if (timeMs - lastStatMs >= 1000) {
+                    lastStatMs = timeMs
+                    val speed = if (stats.speed > 0) " ${"%.2f".format(stats.speed)}x" else ""
+                    onFfmpegLog("进度: ${formatDurationMs(timeMs)}$speed")
+                }
+            }
+        }
+
         val session = FFmpegKit.execute(buildFfmpegCmd(inputCache.absolutePath, outputCache.absolutePath, mode))
         if (!ReturnCode.isSuccess(session.returnCode)) {
             inputCache.delete()
             outputCache.delete()
+            if (onFfmpegLog != null) {
+                FFmpegKitConfig.enableLogCallback(null)
+                FFmpegKitConfig.enableStatisticsCallback(null)
+            }
             return@withContext ExtractResult(
                 inputName = safeName,
                 outputName = outputName,
@@ -184,8 +208,19 @@ object MP3Utils {
                 error = ExtractError.Io(e.message ?: "copy output failed")
             )
         } finally {
+            if (onFfmpegLog != null) {
+                FFmpegKitConfig.enableLogCallback(null)
+                FFmpegKitConfig.enableStatisticsCallback(null)
+            }
             inputCache.delete()
             outputCache.delete()
         }
+    }
+
+    private fun formatDurationMs(timeMs: Long): String {
+        val totalSeconds = timeMs / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return "%02d:%02d".format(minutes, seconds)
     }
 }
