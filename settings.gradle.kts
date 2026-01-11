@@ -16,6 +16,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        flatDir {
+            dirs("app/libs")
+        }
+        maven {
+            url = uri("https://maven.arthenica.com")
+        }
     }
 }
 
