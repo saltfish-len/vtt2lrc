@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/images/cover.png" width="128" height="128" alt="App Icon"/>
+  <img src="docs/images/cover.png" width="128" height="128" alt="App Icon"style="border-radius: 10px;"/>
 
   <br>
 
