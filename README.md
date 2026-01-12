@@ -13,7 +13,7 @@
   </p>
   
   <a href="https://github.com/saltfish-len/vtt2lrc/releases">
-    <img src="https://img.shields.io/github/v/release/saltfish-len/vtt2lrc?style=for-the-badge&color=25D366&logo=android" alt="Download APK" />
+    <img src="https://img.shields.io/github/v/release/saltfish-len/vtt2lrc?include_prereleases&style=for-the-badge&color=25D366&logo=android" alt="Download APK" />
   </a>
   
   <br><br>
