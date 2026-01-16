@@ -198,11 +198,12 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val allExts = listOf("mp4", "mkv", "mov", "avi", "flv", "webm", "m4v")
+    val allExts = listOf("mp4", "mkv", "mov", "avi", "flv", "webm", "m4v", "wav")
 
     var selectedExts by remember { mutableStateOf(setOf("mp4")) }
     var useVbr by remember { mutableStateOf(true) }
     var showFfmpegLogs by remember { mutableStateOf(false) }
+    var deleteSourceWav by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf("准备就绪，请选择文件或文件夹")) }
     var progress by remember { mutableStateOf(0f) }
@@ -223,6 +224,7 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     treeUri = it,
                     selectedExts = selectedExts,
                     mode = mode,
+                    deleteSourceWav = deleteSourceWav,
                     showFfmpegLogs = showFfmpegLogs,
                     onLog = { msg -> logs = logs + msg },
                     onProgress = { p -> progress = p }
@@ -250,6 +252,7 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     fileUri = it,
                     selectedExts = selectedExts,
                     mode = mode,
+                    deleteSourceWav = deleteSourceWav,
                     showFfmpegLogs = showFfmpegLogs,
                     onLog = { msg -> logs = logs + msg },
                     onProgress = { p -> progress = p }
@@ -289,7 +292,16 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     Text("显示 FFmpeg 进度日志")
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("选择视频扩展名", fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = deleteSourceWav,
+                        onCheckedChange = { deleteSourceWav = it },
+                        enabled = !isProcessing
+                    )
+                    Text("WAV 转换后删除源文件")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("选择扩展名", fontWeight = FontWeight.Bold)
                 allExts.chunked(3).forEach { row ->
                     Row {
                         row.forEach { ext ->
@@ -363,7 +375,7 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedButton(
-                    onClick = { fileLauncher.launch(arrayOf("video/*")) },
+                    onClick = { fileLauncher.launch(arrayOf("video/*", "audio/*")) },
                     enabled = !isProcessing,
                     modifier = Modifier.fillMaxWidth().height(56.dp)
                 ) {
@@ -494,6 +506,7 @@ suspend fun extractMp3FromFolder(
     treeUri: Uri,
     selectedExts: Set<String>,
     mode: MP3Utils.Mp3Mode,
+    deleteSourceWav: Boolean,
     showFfmpegLogs: Boolean,
     onLog: (String) -> Unit,
     onProgress: (Float) -> Unit
@@ -531,6 +544,10 @@ suspend fun extractMp3FromFolder(
                 onFfmpegLog = if (showFfmpegLogs) ({ msg -> onLog(msg) }) else null
             )
             onLog(result.message)
+            if (result.success && deleteSourceWav && file.name?.lowercase()?.endsWith(".wav") == true) {
+                val deleted = file.delete()
+                onLog(if (deleted) "🗑️ 已删除源文件: ${file.name}" else "⚠️ 删除源文件失败: ${file.name}")
+            }
             processed++
             onProgress(processed / total.toFloat())
         }
@@ -542,6 +559,7 @@ suspend fun extractMp3FromFile(
     fileUri: Uri,
     selectedExts: Set<String>,
     mode: MP3Utils.Mp3Mode,
+    deleteSourceWav: Boolean,
     showFfmpegLogs: Boolean,
     onLog: (String) -> Unit,
     onProgress: (Float) -> Unit
@@ -583,6 +601,11 @@ suspend fun extractMp3FromFile(
             onFfmpegLog = if (showFfmpegLogs) ({ msg -> onLog(msg) }) else null
         )
         onLog(result.message)
+        if (result.success && deleteSourceWav && displayName.lowercase().endsWith(".wav")) {
+            val doc = DocumentFile.fromSingleUri(context, fileUri)
+            val deleted = doc?.delete() == true
+            onLog(if (deleted) "🗑️ 已删除源文件: $displayName" else "⚠️ 删除源文件失败: $displayName")
+        }
         onProgress(1f)
     }
 }
