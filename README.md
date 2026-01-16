@@ -1,7 +1,5 @@
 # <img src="docs/images/cover.png" width="50" /> VTT to LRC Converter for Android
 
-
-
 一个简单、高效、隐私安全的 Android 本地工具，用于将 WebVTT (`.vtt`) 字幕文件批量转换为 LRC (`.lrc`) 歌词文件。
 
 专为 Android 现代系统设计，支持**文件夹批量操作**与**原地转换**。
@@ -9,6 +7,10 @@
 可在release处下载：
 https://github.com/saltfish-len/vtt2lrc/releases
 选择Assets中的app-release.apk
+
+# Experimental Branch
+
+本分支（`experimental`）为实验性开发分支，用于验证基于 FFmpeg 的音频处理能力，不作为正式功能或发布版本使用。
 
 ## ✨ 功能特点 (Overview)
 
@@ -64,7 +66,18 @@ https://github.com/saltfish-len/vtt2lrc/releases
 Android 版本在此基础上针对移动端文件系统进行了深度适配。
 
 ---
+## License
 
-**License**
-不要商用就行
-This project is provided for non-commercial use only.
+本分支引入并链接了 `ffmpeg-kit-full-gpl-6.0-2.LTS.aar`，该库封装了启用 GPL 组件的 FFmpeg。  
+因此，本分支代码整体构成 GPL 派生作品，并受 **GNU General Public License（GPL）** 约束。
+
+根据 GPL 许可条款：
+
+- 允许自由使用、修改和再分发本分支代码  
+- 任何再分发版本必须继续采用 GPL 许可证  
+- 不得附加任何额外限制（例如“仅限非商业用途”等）
+
+## Distribution
+
+- 本分支未发布任何 APK 或其他二进制文件  
+- 所有正式发布版本均不包含 FFmpeg 或 GPL 依赖
