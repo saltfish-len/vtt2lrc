@@ -11,11 +11,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.saltfishlen.vtt2lrc"
+        applicationId = "com.saltfishlen.vtt2lrc.exp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 1
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
