@@ -8,22 +8,34 @@ import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.documentfile.provider.DocumentFile
+import com.saltfishlen.vtt2lrc.ui.DetailsSection
+import com.saltfishlen.vtt2lrc.ui.Guidance
+import com.saltfishlen.vtt2lrc.ui.GuidanceCard
+import com.saltfishlen.vtt2lrc.ui.JobReporter
+import com.saltfishlen.vtt2lrc.ui.JobState
+import com.saltfishlen.vtt2lrc.ui.SectionCard
+import com.saltfishlen.vtt2lrc.ui.StatusCard
+import com.saltfishlen.vtt2lrc.ui.ToggleRow
+import com.saltfishlen.vtt2lrc.ui.groupedByCause
+import com.saltfishlen.vtt2lrc.ui.theme.Vtt2lrcTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,45 +45,68 @@ import java.io.InputStreamReader
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
-            MaterialTheme {
+            Vtt2lrcTheme {
                 MainScreen()
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
-    var tabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("VTT 转 LRC", "视频提取 MP3")
+    var tabIndex by remember { mutableIntStateOf(0) }
+    val tabs = listOf("字幕转歌词", "视频提取音乐")
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Surface(tonalElevation = 2.dp) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                ) {
-                    Text(tabs[tabIndex], fontWeight = FontWeight.SemiBold)
-                }
-            }
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = tabs[tabIndex],
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                 NavigationBarItem(
                     selected = tabIndex == 0,
                     onClick = { tabIndex = 0 },
-                    icon = { Text("V") },
-                    label = { Text("VTT") }
+                    icon = {
+                        Icon(
+                            imageVector = if (tabIndex == 0) {
+                                Icons.AutoMirrored.Filled.List
+                            } else {
+                                Icons.AutoMirrored.Outlined.List
+                            },
+                            contentDescription = null
+                        )
+                    },
+                    label = { Text("字幕") }
                 )
                 NavigationBarItem(
                     selected = tabIndex == 1,
                     onClick = { tabIndex = 1 },
-                    icon = { Text("M") },
-                    label = { Text("MP3") }
+                    icon = {
+                        Icon(
+                            imageVector = if (tabIndex == 1) {
+                                Icons.Filled.PlayArrow
+                            } else {
+                                Icons.Outlined.PlayArrow
+                            },
+                            contentDescription = null
+                        )
+                    },
+                    label = { Text("音频") }
                 )
             }
         }
@@ -83,43 +118,60 @@ fun MainScreen() {
     }
 }
 
+/** 底部固定的操作区。 */
+@Composable
+private fun ActionBar(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), content = content)
+    }
+}
+
+/** 主按钮内部内容：处理中时换成转圈 + 提示文案。 */
+@Composable
+private fun ButtonContent(text: String, isProcessing: Boolean) {
+    if (isProcessing) {
+        CircularProgressIndicator(
+            strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text("正在处理…")
+    } else {
+        Text(text)
+    }
+}
+
+/** 所有失败提示；同一原因的多个文件会合并成一条。 */
+@Composable
+private fun GuidanceList(job: JobState) {
+    job.blocker?.let { GuidanceCard(failure = it) }
+    job.failures.groupedByCause().forEach { GuidanceCard(failure = it) }
+}
+
 @Composable
 fun VttBatchConverterScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // UI 状态
+    var job by remember { mutableStateOf(JobState()) }
     var removeNestedExt by remember { mutableStateOf(true) }
-    var isProcessing by remember { mutableStateOf(false) }
-    var logs by remember { mutableStateOf(listOf<String>("准备就绪，请选择包含 VTT 的文件夹")) }
-    var progress by remember { mutableStateOf(0f) }
+    val isProcessing = job.isBusy
 
-    // 文件夹选择器
     val folderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                // 持久化权限，App 重启后依然有效
-                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                try {
-                    context.contentResolver.takePersistableUriPermission(it, flags)
-                } catch (e: Exception) {
-                    logs = logs + "警告: 权限持久化失败，但这不影响本次操作"
-                }
-
-                isProcessing = true
-                logs = listOf("正在扫描文件夹...")
-                progress = 0f
-
-                processFolderInPlace(context, it, removeNestedExt,
-                    onLog = { msg -> logs = logs + msg },
-                    onProgress = { p -> progress = p }
-                )
-
-                isProcessing = false
-                logs = logs + "=== 全部完成 ==="
+                val reporter = JobReporter { newState -> job = newState }
+                reporter.start()
+                keepFolderAccess(context, it, reporter)
+                processFolderInPlace(context, it, removeNestedExt, reporter)
+                reporter.finish()
             }
         }
     }
@@ -127,72 +179,56 @@ fun VttBatchConverterScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 选项区域
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(12.dp)
-            ) {
-                Checkbox(
+            StatusCard(
+                state = job,
+                idleTitle = "选择文件夹开始转换",
+                idleHint = "文件夹中的 .vtt 字幕会转换为 .lrc 歌词，保存在同一位置"
+            )
+
+            GuidanceList(job)
+
+            SectionCard(title = "转换设置") {
+                ToggleRow(
+                    title = "自动整理文件名",
+                    subtitle = if (removeNestedExt) {
+                        "song.mp3.vtt 转换为 song.lrc（推荐）"
+                    } else {
+                        "song.mp3.vtt 转换为 song.mp3.lrc"
+                    },
                     checked = removeNestedExt,
                     onCheckedChange = { removeNestedExt = it },
                     enabled = !isProcessing
                 )
-                Column {
-                    Text("去除嵌套扩展名", fontWeight = FontWeight.Bold)
-                    Text(
-                        if (removeNestedExt) "例如: song.mp3.vtt -> song.lrc"
-                        else "例如: song.mp3.vtt -> song.mp3.lrc",
-                        fontSize = 12.sp, color = Color.Gray
-                    )
-                }
             }
+
+            DetailsSection(details = job.details)
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Button(
-            onClick = { folderLauncher.launch(null) },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
-        ) {
-            if (isProcessing) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("正在处理...")
-            } else {
-                Text("选择文件夹并开始转换")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        if (isProcessing) {
-            LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text("运行日志:", fontWeight = FontWeight.Bold)
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFEEEEEE))
-                .padding(8.dp)
-        ) {
-            items(logs) { log ->
-                Text(text = log, fontSize = 12.sp, modifier = Modifier.padding(vertical = 2.dp))
+        ActionBar {
+            Button(
+                onClick = { folderLauncher.launch(null) },
+                enabled = !isProcessing,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                ButtonContent("选择文件夹，开始转换", isProcessing)
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -200,23 +236,21 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
 
     val allExts = listOf("mp4", "mkv", "mov", "avi", "flv", "webm", "m4v", "wav")
 
+    var job by remember { mutableStateOf(JobState()) }
     var selectedExts by remember { mutableStateOf(setOf("mp4")) }
     var useVbr by remember { mutableStateOf(true) }
     var showFfmpegLogs by remember { mutableStateOf(false) }
     var deleteSourceWav by remember { mutableStateOf(false) }
-    var isProcessing by remember { mutableStateOf(false) }
-    var logs by remember { mutableStateOf(listOf("准备就绪，请选择文件或文件夹")) }
-    var progress by remember { mutableStateOf(0f) }
+    val isProcessing = job.isBusy
 
     val folderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                isProcessing = true
-                logs = listOf("正在扫描文件夹...")
-                progress = 0f
-                persistWritePermission(context, it, logs) { newLogs -> logs = newLogs }
+                val reporter = JobReporter { newState -> job = newState }
+                reporter.start()
+                keepFolderAccess(context, it, reporter)
 
                 val mode = if (useVbr) MP3Utils.Mp3Mode.Vbr() else MP3Utils.Mp3Mode.Cbr()
                 extractMp3FromFolder(
@@ -226,12 +260,9 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     mode = mode,
                     deleteSourceWav = deleteSourceWav,
                     showFfmpegLogs = showFfmpegLogs,
-                    onLog = { msg -> logs = logs + msg },
-                    onProgress = { p -> progress = p }
+                    reporter = reporter
                 )
-
-                isProcessing = false
-                logs = logs + "=== 全部完成 ==="
+                reporter.finish()
             }
         }
     }
@@ -241,10 +272,9 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
     ) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                isProcessing = true
-                logs = listOf("正在处理单个文件...")
-                progress = 0f
-                persistWritePermission(context, it, logs) { newLogs -> logs = newLogs }
+                val reporter = JobReporter { newState -> job = newState }
+                reporter.start()
+                keepFolderAccess(context, it, reporter)
 
                 val mode = if (useVbr) MP3Utils.Mp3Mode.Vbr() else MP3Utils.Mp3Mode.Cbr()
                 extractMp3FromFile(
@@ -254,12 +284,9 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
                     mode = mode,
                     deleteSourceWav = deleteSourceWav,
                     showFfmpegLogs = showFfmpegLogs,
-                    onLog = { msg -> logs = logs + msg },
-                    onProgress = { p -> progress = p }
+                    reporter = reporter
                 )
-
-                isProcessing = false
-                logs = logs + "=== 全部完成 ==="
+                reporter.finish()
             }
         }
     }
@@ -267,120 +294,150 @@ fun Mp3BatchExtractorScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("输出模式", fontWeight = FontWeight.Bold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = useVbr, onClick = { useVbr = true }, enabled = !isProcessing)
-                    Text("VBR (q=2)")
-                    Spacer(modifier = Modifier.width(16.dp))
-                    RadioButton(selected = !useVbr, onClick = { useVbr = false }, enabled = !isProcessing)
-                    Text("CBR (192k)")
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = showFfmpegLogs,
-                        onCheckedChange = { showFfmpegLogs = it },
+            StatusCard(
+                state = job,
+                idleTitle = "选择文件夹开始提取",
+                idleHint = "文件夹中的视频会提取出 MP3，保存在同一位置"
+            )
+
+            GuidanceList(job)
+
+            SectionCard(title = "音质") {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = useVbr,
+                        onClick = { useVbr = true },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                         enabled = !isProcessing
-                    )
-                    Text("显示 FFmpeg 进度日志")
+                    ) {
+                        Text("高音质")
+                    }
+                    SegmentedButton(
+                        selected = !useVbr,
+                        onClick = { useVbr = false },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        enabled = !isProcessing
+                    ) {
+                        Text("省空间")
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = if (useVbr) {
+                        "文件较大，音质更好（推荐）"
+                    } else {
+                        "文件约小一半，日常收听足够"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            SectionCard(title = "要处理的格式") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    allExts.forEach { ext ->
+                        val checked = selectedExts.contains(ext)
+                        FilterChip(
+                            selected = checked,
+                            onClick = {
+                                selectedExts = if (checked) {
+                                    selectedExts - ext
+                                } else {
+                                    selectedExts + ext
+                                }
+                            },
+                            enabled = !isProcessing,
+                            label = { Text(ext.uppercase()) },
+                            leadingIcon = if (checked) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                    )
+                                }
+                            } else {
+                                null
+                            }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = if (selectedExts.isEmpty()) {
+                        "未勾选任何格式，不会处理文件"
+                    } else {
+                        "不确定时保持默认的 MP4 即可"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selectedExts.isEmpty()) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+
+                if (selectedExts.contains("wav")) {
+                    Spacer(Modifier.height(4.dp))
+                    ToggleRow(
+                        title = "转换后删除原 WAV 文件",
+                        subtitle = "删除后无法恢复，不确定请勿开启",
                         checked = deleteSourceWav,
                         onCheckedChange = { deleteSourceWav = it },
                         enabled = !isProcessing
                     )
-                    Text("WAV 转换后删除源文件")
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("选择扩展名", fontWeight = FontWeight.Bold)
-                allExts.chunked(3).forEach { row ->
-                    Row {
-                        row.forEach { ext ->
-                            val checked = selectedExts.contains(ext)
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(end = 12.dp)
-                            ) {
-                                Checkbox(
-                                    checked = checked,
-                                    onCheckedChange = {
-                                        selectedExts = if (checked) {
-                                            selectedExts - ext
-                                        } else {
-                                            selectedExts + ext
-                                        }
-                                    },
-                                    enabled = !isProcessing
-                                )
-                                Text(ext)
-                            }
-                        }
-                    }
                 }
             }
+
+            DetailsSection(
+                details = job.details,
+                extraSettings = {
+                    ToggleRow(
+                        title = "记录每一步的转换细节",
+                        subtitle = "仅排查问题时需要，平时无需开启",
+                        checked = showFfmpegLogs,
+                        onCheckedChange = { showFfmpegLogs = it },
+                        enabled = !isProcessing
+                    )
+                }
+            )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text("运行日志:", fontWeight = FontWeight.Bold)
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color(0xFFEEEEEE))
-                .padding(8.dp)
-        ) {
-            items(logs) { log ->
-                Text(text = log, fontSize = 12.sp, modifier = Modifier.padding(vertical = 2.dp))
+        ActionBar {
+            Button(
+                onClick = { folderLauncher.launch(null) },
+                enabled = !isProcessing,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                ButtonContent("选择文件夹，批量提取", isProcessing)
             }
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
 
-        Surface(
-            tonalElevation = 2.dp,
-            shadowElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                if (isProcessing) {
-                    LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-
-                Button(
-                    onClick = { folderLauncher.launch(null) },
-                    enabled = !isProcessing,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B))
-                ) {
-                    if (isProcessing) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text("正在处理...")
-                    } else {
-                        Text("选择文件夹批量提取")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedButton(
-                    onClick = { fileLauncher.launch(arrayOf("video/*", "audio/*")) },
-                    enabled = !isProcessing,
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) {
-                    Text("选择单个文件提取")
-                }
+            OutlinedButton(
+                onClick = { fileLauncher.launch(arrayOf("video/*", "audio/*")) },
+                enabled = !isProcessing,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                Text("只处理一个文件")
             }
         }
     }
@@ -391,14 +448,13 @@ suspend fun processFolderInPlace(
     context: Context,
     treeUri: Uri,
     removeNestedExt: Boolean,
-    onLog: (String) -> Unit,
-    onProgress: (Float) -> Unit
+    reporter: JobReporter
 ) {
     withContext(Dispatchers.IO) {
         try {
             val rootDir = DocumentFile.fromTreeUri(context, treeUri)
             if (rootDir == null || !rootDir.isDirectory) {
-                onLog("错误：无法访问文件夹。")
+                reporter.blocked(Guidance.folderNotAccessible())
                 return@withContext
             }
 
@@ -406,61 +462,70 @@ suspend fun processFolderInPlace(
             val allFiles = rootDir.listFiles()
             val vttFiles = allFiles.filter { it.name?.lowercase()?.endsWith(".vtt") == true }
 
-                val total = vttFiles.size
+            val total = vttFiles.size
             if (total == 0) {
-                onLog("未找到 .vtt 文件。")
+                reporter.blocked(Guidance.noVttFound())
                 return@withContext
             }
 
-            onLog("发现 $total 个 VTT 文件，开始转换...")
-
-            var processed = 0
+            reporter.found(total)
 
             for (file in vttFiles) {
                 val originalName = file.name ?: "unknown.vtt"
+                reporter.startFile(originalName)
+
+                val content = try {
+                    readTextFromUri(context, file.uri)
+                } catch (e: Exception) {
+                    reporter.fileFailed(
+                        Guidance.readFailed(originalName),
+                        "$originalName 读取失败: ${e.message}"
+                    )
+                    continue
+                }
 
                 try {
-                    // 读取内容（UTF-8）
-                    val content = readTextFromUri(context, file.uri)
-
                     val baseName = VttUtils.getOutputFileName(originalName, removeNestedExt)
                     val lrcFileName = "$baseName.lrc"
                     val lrcContent = VttUtils.convertToLrc(content, baseName)
 
-                    // 覆盖逻辑：避免自动重命名
+                    // 覆盖逻辑：避免自动重命名（如生成 xxx (1).lrc）
                     val existingLrc = rootDir.findFile(lrcFileName)
                     if (existingLrc != null && existingLrc.exists()) {
-                        // 尝试删除旧文件，防止自动重命名（如生成 xxx (1).lrc）
                         try {
                             existingLrc.delete()
                         } catch (e: Exception) {
-                            // 如果删除失败，尝试直接覆盖写入
+                            // 删除失败就直接覆盖写入
+                            reporter.detail("⚠️ 旧文件无法删除，改为直接覆盖: $lrcFileName")
                         }
                     }
 
-                    // 创建新文件
                     val newFile = rootDir.createFile("text/x-lrc", lrcFileName)
-
-                    if (newFile != null) {
-                        // 使用 "w" 模式，并强制 UTF-8 编码
-                        context.contentResolver.openOutputStream(newFile.uri, "w")?.use { output ->
-                            output.write(lrcContent.toByteArray(Charsets.UTF_8))
-                        }
-                        onLog("✅ $originalName -> $lrcFileName")
-                    } else {
-                        onLog("❌ 创建文件失败: $lrcFileName")
+                    if (newFile == null) {
+                        reporter.fileFailed(
+                            Guidance.cannotCreateFile(originalName),
+                            "$originalName 创建输出文件失败"
+                        )
+                        continue
                     }
+
+                    // 使用 "w" 模式，并强制 UTF-8 编码
+                    context.contentResolver.openOutputStream(newFile.uri, "w")?.use { output ->
+                        output.write(lrcContent.toByteArray(Charsets.UTF_8))
+                    }
+                    reporter.fileSucceeded(originalName, lrcFileName)
 
                 } catch (e: Exception) {
-                    onLog("❌ 转换失败 ($originalName): ${e.message}")
+                    reporter.fileFailed(
+                        Guidance.unexpected(originalName),
+                        "$originalName 转换失败: ${e.message}"
+                    )
                 }
-
-                processed++
-                onProgress(processed / total.toFloat())
             }
 
         } catch (e: Exception) {
-            onLog("致命错误: ${e.message}")
+            reporter.detail("❌ 致命错误: ${e.message}")
+            reporter.blocked(Guidance.folderNotAccessible())
             e.printStackTrace()
         }
     }
@@ -482,17 +547,13 @@ fun readTextFromUri(context: Context, uri: Uri): String {
     return sb.toString()
 }
 
-private fun persistWritePermission(
-    context: Context,
-    uri: Uri,
-    logs: List<String>,
-    onLogsUpdate: (List<String>) -> Unit
-) {
+/** 记住这次授权，App 重启后依然能访问；失败不影响本次操作，只写进详细记录。 */
+private fun keepFolderAccess(context: Context, uri: Uri, reporter: JobReporter) {
     val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
     try {
         context.contentResolver.takePersistableUriPermission(uri, flags)
     } catch (e: Exception) {
-        onLogsUpdate(logs + "警告: 权限持久化失败，但这不影响本次操作")
+        reporter.detail("⚠️ 访问授权未能长期保存，不影响本次操作: ${e.message}")
     }
 }
 
@@ -508,48 +569,59 @@ suspend fun extractMp3FromFolder(
     mode: MP3Utils.Mp3Mode,
     deleteSourceWav: Boolean,
     showFfmpegLogs: Boolean,
-    onLog: (String) -> Unit,
-    onProgress: (Float) -> Unit
+    reporter: JobReporter
 ) {
     withContext(Dispatchers.IO) {
         if (selectedExts.isEmpty()) {
-            onLog("请至少选择一个扩展名。")
+            reporter.blocked(Guidance.noExtSelected())
             return@withContext
         }
 
         val rootDir = DocumentFile.fromTreeUri(context, treeUri)
         if (rootDir == null || !rootDir.isDirectory) {
-            onLog("错误：无法访问文件夹。")
+            reporter.blocked(Guidance.folderNotAccessible())
             return@withContext
         }
 
         val allFiles = rootDir.listFiles()
-        val videoFiles = allFiles.filter { it.isFile && (it.name?.let { name -> matchesExt(name, selectedExts) } == true) }
+        val videoFiles = allFiles.filter {
+            it.isFile && (it.name?.let { name -> matchesExt(name, selectedExts) } == true)
+        }
         val total = videoFiles.size
         if (total == 0) {
-            onLog("未找到匹配扩展名的视频文件。")
+            reporter.blocked(Guidance.noVideoFound(selectedExts))
             return@withContext
         }
 
-        onLog("发现 $total 个视频文件，开始提取...")
-        var processed = 0
+        reporter.found(total)
 
         for (file in videoFiles) {
+            val name = file.name ?: "未命名文件"
+            reporter.startFile(name)
+
             val result = MP3Utils.extractOneMp3(
                 context = context,
                 videoUri = file.uri,
                 outputDirTreeUri = treeUri,
                 mode = mode,
                 cacheDir = context.cacheDir,
-                onFfmpegLog = if (showFfmpegLogs) ({ msg -> onLog(msg) }) else null
+                onFfmpegLog = if (showFfmpegLogs) ({ msg -> reporter.detail(msg) }) else null
             )
-            onLog(result.message)
-            if (result.success && deleteSourceWav && file.name?.lowercase()?.endsWith(".wav") == true) {
-                val deleted = file.delete()
-                onLog(if (deleted) "🗑️ 已删除源文件: ${file.name}" else "⚠️ 删除源文件失败: ${file.name}")
+
+            if (result.success) {
+                reporter.fileSucceeded(result.inputName, result.outputName)
+                if (deleteSourceWav && name.lowercase().endsWith(".wav")) {
+                    val deleted = file.delete()
+                    reporter.detail(
+                        if (deleted) "已删除源文件: $name" else "⚠️ 删除源文件失败: $name"
+                    )
+                }
+            } else {
+                reporter.fileFailed(
+                    Guidance.forExtractError(result.inputName, result.error),
+                    "${result.inputName} ${result.message}"
+                )
             }
-            processed++
-            onProgress(processed / total.toFloat())
         }
     }
 }
@@ -561,12 +633,11 @@ suspend fun extractMp3FromFile(
     mode: MP3Utils.Mp3Mode,
     deleteSourceWav: Boolean,
     showFfmpegLogs: Boolean,
-    onLog: (String) -> Unit,
-    onProgress: (Float) -> Unit
+    reporter: JobReporter
 ) {
     withContext(Dispatchers.IO) {
         if (selectedExts.isEmpty()) {
-            onLog("请至少选择一个扩展名。")
+            reporter.blocked(Guidance.noExtSelected())
             return@withContext
         }
 
@@ -575,22 +646,25 @@ suspend fun extractMp3FromFile(
             ?: "video"
 
         if (!matchesExt(displayName, selectedExts)) {
-            onLog("文件扩展名不匹配: $displayName")
+            reporter.blocked(Guidance.extNotSelected(displayName))
             return@withContext
         }
 
         val parentTreeUri = buildParentTreeUri(fileUri)
         if (parentTreeUri == null) {
-            onLog("无法定位输出目录，请改用选择文件夹")
+            reporter.blocked(Guidance.outputDirUnknown(displayName))
             return@withContext
         }
 
         try {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(parentTreeUri, flags)
-        } catch (_: Exception) {
-            onLog("警告: 无法持久化输出目录权限")
+        } catch (e: Exception) {
+            reporter.detail("⚠️ 保存位置的授权未能长期保存，不影响本次操作: ${e.message}")
         }
+
+        reporter.found(1)
+        reporter.startFile(displayName)
 
         val result = MP3Utils.extractOneMp3(
             context = context,
@@ -598,15 +672,24 @@ suspend fun extractMp3FromFile(
             outputDirTreeUri = parentTreeUri,
             mode = mode,
             cacheDir = context.cacheDir,
-            onFfmpegLog = if (showFfmpegLogs) ({ msg -> onLog(msg) }) else null
+            onFfmpegLog = if (showFfmpegLogs) ({ msg -> reporter.detail(msg) }) else null
         )
-        onLog(result.message)
-        if (result.success && deleteSourceWav && displayName.lowercase().endsWith(".wav")) {
-            val doc = DocumentFile.fromSingleUri(context, fileUri)
-            val deleted = doc?.delete() == true
-            onLog(if (deleted) "🗑️ 已删除源文件: $displayName" else "⚠️ 删除源文件失败: $displayName")
+
+        if (result.success) {
+            reporter.fileSucceeded(result.inputName, result.outputName)
+            if (deleteSourceWav && displayName.lowercase().endsWith(".wav")) {
+                val doc = DocumentFile.fromSingleUri(context, fileUri)
+                val deleted = doc?.delete() == true
+                reporter.detail(
+                    if (deleted) "已删除源文件: $displayName" else "⚠️ 删除源文件失败: $displayName"
+                )
+            }
+        } else {
+            reporter.fileFailed(
+                Guidance.forExtractError(result.inputName, result.error),
+                "${result.inputName} ${result.message}"
+            )
         }
-        onProgress(1f)
     }
 }
 
