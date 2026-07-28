@@ -4,7 +4,7 @@
 
 带 FFmpeg 的实验版在 `experimental` 分支，不发布二进制，其变更见该分支的 CHANGELOG。
 
-## 0.0.3（未发布）
+## 0.0.3（2026-07-28）
 
 `versionCode` 3 · `versionName` 1.2
 
