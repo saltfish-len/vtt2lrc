@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>字幕转歌词 · VTT 转 LRC</title>
+<meta name="description" content="把 WebVTT (.vtt) 字幕转成 LRC (.lrc) 歌词。纯浏览器本地转换，文件不会上传。" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#FBF8FF" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#121319" media="(prefers-color-scheme: dark)" />
+<link rel="icon" href="assets/cover.png" />
+<link rel="apple-touch-icon" href="assets/cover.png" />
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <h1>字幕转歌词</h1>
+</header>
+
+<main class="page">
+
+  <!-- 状态卡：空闲 / 处理中 / 完成，三种形态复用同一块区域 -->
+  <section class="card" aria-live="polite">
+    <div class="status-idle" id="statusIdle">
+      <img class="status-icon" src="assets/cover.png" alt="" width="56" height="56" />
+      <div>
+        <h2>选择字幕文件开始转换</h2>
+        <p class="muted">选中的 .vtt 会转成 .lrc 歌词，可以一个也可以一次选很多个。</p>
+      </div>
+    </div>
+
+    <div class="status-busy" id="statusBusy" hidden>
+      <div class="ring" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="ring">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle class="ring-track" cx="24" cy="24" r="20"></circle>
+          <circle class="ring-fill" cx="24" cy="24" r="20" id="ringFill"></circle>
+        </svg>
+        <span class="ring-label" id="ringLabel">0%</span>
+      </div>
+      <div class="status-busy-text">
+        <h2 id="busyTitle">正在转换…</h2>
+        <p class="muted ellipsis" id="busyFile"></p>
+      </div>
+    </div>
+
+    <div class="status-done" id="statusDone" hidden>
+      <h2 id="doneTitle"></h2>
+      <p class="muted" id="doneHint"></p>
+    </div>
+  </section>
+
+  <!-- 「哪里出问题了 + 该怎么办」，同一原因的多个文件合并成一条 -->
+  <div id="guidance"></div>
+
+  <!-- 转换结果 -->
+  <section class="card results" id="resultsCard" hidden>
+    <div class="results-head">
+      <h2>转换结果</h2>
+      <button type="button" class="btn btn-small is-primary" id="downloadAllBtn" hidden>全部下载</button>
+    </div>
+    <p class="muted small" id="downloadAllHint" hidden></p>
+    <ul class="result-list" id="resultList"></ul>
+  </section>
+
+  <!-- 转换设置 -->
+  <section class="card">
+    <h2>转换设置</h2>
+    <label class="toggle-row" for="cleanNameToggle">
+      <span class="toggle-text">
+        <span class="toggle-title">自动整理文件名</span>
+        <span class="muted small" id="cleanNameHint">song.mp3.vtt 转换为 song.lrc（推荐）</span>
+      </span>
+      <input type="checkbox" id="cleanNameToggle" checked />
+      <span class="switch" aria-hidden="true"></span>
+    </label>
+  </section>
+
+  <!-- 详细过程，默认折叠，只给需要排查的人看 -->
+  <details class="card details" id="detailsCard" hidden>
+    <summary>查看详细过程</summary>
+    <pre class="detail-log" id="detailLog"></pre>
+  </details>
+
+  <section class="card about">
+    <h2>关于</h2>
+    <ul class="about-list">
+      <li><b>不上传</b>：转换全部在你的浏览器里完成，文件不会离开这台设备，断网也能用。</li>
+      <li><b>只处理 .vtt</b>：其他格式的字幕会被跳过。</li>
+      <li><b>编码</b>：按 UTF-8 读取，与 Android 版一致。</li>
+      <li>需要在手机上批量转换整个文件夹，可以用
+        <a href="https://github.com/saltfish-len/vtt2lrc/releases" target="_blank" rel="noopener">Android 版</a>，
+        它能直接在原文件夹里生成 .lrc。</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="foot">
+  <a href="https://github.com/saltfish-len/vtt2lrc" target="_blank" rel="noopener">GitHub 仓库</a>
+</footer>
+
+<!-- 底部常驻操作条：手机上单手可及 -->
+<div class="actionbar">
+  <div class="actionbar-inner">
+    <button type="button" class="btn btn-primary" id="pickFilesBtn">选择 .vtt 文件</button>
+    <button type="button" class="btn btn-tonal" id="pickFolderBtn" hidden>选择文件夹</button>
+  </div>
+</div>
+
+<!-- 桌面端拖放提示层 -->
+<div class="dropzone" id="dropzone" hidden><span>松开即可转换</span></div>
+
+<!--
+  不写 accept：Android 的文件选择器把扩展名映射到 MIME 时经常认不出 .vtt，
+  加了 accept 反而会让字幕文件变灰选不中。这里放开选择，再在 JS 里筛。
+-->
+<input type="file" id="fileInput" multiple hidden />
+<input type="file" id="folderInput" webkitdirectory multiple hidden />
+
+<script type="module" src="assets/app.js"></script>
+</body>
+</html>

@@ -2,6 +2,10 @@ package com.saltfishlen.vtt2lrc
 
 import java.util.regex.Pattern
 
+/**
+ * 网页版的同名实现在 web/assets/vtt2lrc.js，两边必须对同一份 .vtt 产出同一份 .lrc。
+ * 改动这里的解析规则或扩展名列表时，请同步改那一侧，并跑 tests/vtt2lrc.test.mjs。
+ */
 object VttUtils {
 
     // 扩展名列表：包含常见音视频与字幕格式
