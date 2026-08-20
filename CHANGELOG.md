@@ -10,6 +10,19 @@
 
 `applicationId` `com.saltfishlen.vtt2lrc.exp` · `versionCode` 1 · `versionName` 1.0
 
+### 合入 main
+
+把 `main` 合了进来，本分支不再落后正式版。带进来的主要是网页版及其配套：
+
+- `web/`：纯网页版字幕转换器，从 `main` 分支部署在 <https://saltfish-len.github.io/vtt2lrc/>
+- `tests/vtt2lrc.test.mjs`：转换核心的单元测试，`node --test tests/vtt2lrc.test.mjs`
+- `.github/workflows/pages.yml`：Pages 部署，只在推送到 `main` 时发布，本分支的改动不会触发
+- `VttUtils.kt` 加了一条注释，指向网页版的对照实现
+
+FFmpeg 相关的代码、双页签界面和 GPL 声明都未受影响。
+
+`versionCode` 与 `versionName` 保持本分支的 1 / 1.0，没有跟随正式版的 3 / 1.2 —— `.exp` 是独立应用，两条版本线各自递增。
+
 ### 拆分 applicationId
 
 此前本分支与正式版共用 `com.saltfishlen.vtt2lrc`，两者的 `versionCode` 因此必须全局单调，互相覆盖安装也说不通（9 MB vs 160 MB）。现在改为 `.exp` 后缀，两者可同时安装、版本号各自递增。启动器中显示为「VTT原地转换 实验版」。
