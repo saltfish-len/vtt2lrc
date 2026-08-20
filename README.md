@@ -15,6 +15,9 @@
   <a href="https://github.com/saltfish-len/vtt2lrc/releases">
     <img src="https://img.shields.io/github/v/release/saltfish-len/vtt2lrc?include_prereleases&style=for-the-badge&color=25D366&logo=android" alt="Download APK" />
   </a>
+  <a href="https://saltfish-len.github.io/vtt2lrc/">
+    <img src="https://img.shields.io/badge/%E7%BD%91%E9%A1%B5%E7%89%88-%E5%85%8D%E5%AE%89%E8%A3%85%E7%9B%B4%E6%8E%A5%E7%94%A8-3B5BDB?style=for-the-badge&logo=googlechrome&logoColor=white" alt="网页版" />
+  </a>
   
   <br><br>
   <img src="docs/images/TITLE.png" width="100%" alt="Teaser Image" style="border-radius: 10px;"/>
@@ -85,6 +88,29 @@
 > **只处理所选的这一层**
 >
 > 扫描不会进入子文件夹。如果字幕分散在多级目录里，需要逐个目录选择。
+
+## 🌐 网页版 (Web Version)
+
+不想装 App，或者用的是 iOS、鸿蒙，可以直接打开网页版：
+
+### **<https://saltfish-len.github.io/vtt2lrc/>**
+
+转换逻辑与 Android 版**共用同一套规则**，同一份 `.vtt` 在两端得到完全一样的 `.lrc`（`web/assets/vtt2lrc.js` 是 `VttUtils.kt` 的逐行对照实现，`tests/` 里的用例对着两边一起写）。
+
+同样是纯本地转换：文件不上传，页面加载后断网也能用。
+
+**和 App 的区别**
+
+| | Android 版 | 网页版 |
+| --- | --- | --- |
+| 输出位置 | 原地写回同一文件夹 | 逐个下载到「下载」目录 |
+| 批量 | 选一个文件夹全部转换 | 多选文件，或选文件夹（iOS 需 18.4+） |
+| 安装 | 需要装 APK | 打开就能用 |
+
+浏览器不允许网页往你选的文件夹里写文件，所以网页版做不到「原地写回」。**批量转换仍然推荐用 Android 版**：
+
+*   **安卓 / 鸿蒙**：点「全部下载」后同意浏览器的多文件下载提示即可。
+*   **iOS**：Safari 对连续下载限制较严，经常只保存下第一个，建议用每条结果自己的「下载」按钮。
 
 ## 🤖 开发幕后 (Development Story)
 
